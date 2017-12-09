@@ -580,9 +580,9 @@ func (checker *Checker) UponEVMStart(evm *Interpreter, contract *Contract) {
 
 	// When the call is from a regular user, i.e. when the call stack is empty/quiescent state, we also record the origin, block number, and time
 	if checker.evmStack.Len() == 0 {
-		checker.origin = &evm.env.Origin
-		checker.blockNumber = evm.env.BlockNumber
-		checker.time = evm.env.Time
+		checker.origin = &evm.evm.Origin
+		checker.blockNumber = evm.evm.BlockNumber
+		checker.time = evm.evm.Time
 		checker.processTime = time.Now()
 	}
 
@@ -614,13 +614,13 @@ func (checker *Checker) UponEVMEnd(evm *Interpreter, contract *Contract) {
 	if checker.runningSegments.Len() == 1 && activeCallIsARealCall {
 		FirstSegment := checker.runningSegments.Pop().(*Segment)
 
-		Debug(2, "Transaction ended (Block #%v, contract %v). Checking if ECF", evm.env.BlockNumber, FirstSegment.contract.Hex())
+		Debug(2, "Transaction ended (Block #%v, contract %v). Checking if ECF", evm.evm.BlockNumber, FirstSegment.contract.Hex())
 
 		ecfCheckStartTime := time.Now()
 		checker.checkECF()
 		ecfCheckDuration := time.Since(ecfCheckStartTime)
 		totalProcessDuration := time.Since(checker.processTime)
-		Debug(2, "ECF check (Block #%v, contract %v) took %s / %s total", evm.env.BlockNumber, FirstSegment.contract.Hex(), ecfCheckDuration, totalProcessDuration)
+		Debug(2, "ECF check (Block #%v, contract %v) took %s / %s total", evm.evm.BlockNumber, FirstSegment.contract.Hex(), ecfCheckDuration, totalProcessDuration)
 	}
 
 	if checker.evmStack.Len() == 0 {
@@ -636,10 +636,6 @@ func (checker *Checker) UponSStore(evm *EVM, contract *Contract, loc common.Hash
 		return
 	}
 
-	if storageDebug {
-		Debug(6, "SSTORE contract %v, location %v and value %v\n", contract.Address().Hex(), loc, val)
-	}
-
 	checker.GetLastSegment().writeSet.Add(loc)
 }
 
@@ -647,10 +643,6 @@ func (checker *Checker) UponSStore(evm *EVM, contract *Contract, loc common.Hash
 func (checker *Checker) UponSLoad(evm *EVM, contract *Contract, loc common.Hash, val *big.Int) {
 	if DISABLE_CHECKER {
 		return
-	}
-
-	if storageDebug {
-		Debug(6, "SLOAD contract %v, location %v and value %v\n", contract.Address().Hex(), loc, val)
 	}
 
 	// Add only if not in writeSet.
