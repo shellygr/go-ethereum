@@ -17,6 +17,7 @@
 package node
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -29,6 +30,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/debug"

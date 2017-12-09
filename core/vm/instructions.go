@@ -616,7 +616,7 @@ func opCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Sta
 	// Get the arguments from the memory.
 	args := memory.Get(inOffset.Int64(), inSize.Int64())
 
-	TheChecker().UponCall(evm, contract, address, value, args)
+	TheChecker().UponCall(evm, contract, toAddr, value, args)
 
 	if value.Sign() != 0 {
 		gas += params.CallStipend
