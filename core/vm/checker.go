@@ -1,4 +1,4 @@
-// Shelly
+// TODO: Shelly - add relevant copyright notices
 
 package vm
 
