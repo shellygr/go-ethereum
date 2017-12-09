@@ -510,6 +510,8 @@ func opSload(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *St
 	loc := common.BigToHash(stack.pop())
 	val := evm.StateDB.GetState(contract.Address(), loc).Big()
 	stack.push(val)
+	TheChecker().UponSLoad(evm, contract, loc, val)
+
 	return nil, nil
 }
 
@@ -517,6 +519,7 @@ func opSstore(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *S
 	loc := common.BigToHash(stack.pop())
 	val := stack.pop()
 	evm.StateDB.SetState(contract.Address(), loc, common.BigToHash(val))
+	TheChecker().UponSStore(evm, contract, loc, val)
 
 	evm.interpreter.intPool.put(val)
 	return nil, nil
@@ -612,6 +615,8 @@ func opCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Sta
 	value = math.U256(value)
 	// Get the arguments from the memory.
 	args := memory.Get(inOffset.Int64(), inSize.Int64())
+
+	TheChecker().UponCall(evm, contract, address, value, args)
 
 	if value.Sign() != 0 {
 		gas += params.CallStipend
