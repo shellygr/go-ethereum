@@ -26,6 +26,8 @@ import (
 	"strings"
 	"sync"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -34,6 +36,10 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/prometheus/prometheus/util/flock"
+)
+
+const (
+	DB_FILENAME = "ecf.db"
 )
 
 // Node is a container on which services can be registered.
@@ -71,6 +77,13 @@ type Node struct {
 	lock sync.RWMutex
 
 	log log.Logger
+
+	dbHandler *sql.DB // TODO: Shelly - db handler, for evaluation purposes after rebase
+}
+
+// GetDbHandler returns the db handler
+func (n *Node) GetDbHandler() *sql.DB {
+	return n.dbHandler
 }
 
 // New creates a new P2P node, ready for protocol registration.
@@ -108,7 +121,7 @@ func New(conf *Config) (*Node, error) {
 	}
 	// Note: any interaction with Config that would create/touch files
 	// in the data directory or instance directory is delayed until Start.
-	return &Node{
+	n := &Node{
 		accman:            am,
 		ephemeralKeystore: ephemeralKeystore,
 		config:            conf,
@@ -118,7 +131,14 @@ func New(conf *Config) (*Node, error) {
 		wsEndpoint:        conf.WSEndpoint(),
 		eventmux:          new(event.TypeMux),
 		log:               conf.Logger,
-	}, nil
+	}
+
+	err = n.setupDb()
+	if err != nil {
+		return nil, err
+	}
+
+	return n, nil
 }
 
 // Register injects a new service into the node's stack. The service created by
@@ -133,6 +153,53 @@ func (n *Node) Register(constructor ServiceConstructor) error {
 	n.serviceFuncs = append(n.serviceFuncs, constructor)
 	return nil
 }
+
+/* Shelly - section start */
+func (n *Node) executeStmt(stmt string) error {
+	_, err := n.dbHandler.Exec(stmt)
+	if err != nil {
+		fmt.Println("Faild to execute %s", stmt)
+		return err
+	}
+
+	return nil
+}
+
+func (n *Node) setupDb() error {
+	// SHELLY - create the database
+	dbfile := filepath.Join(n.config.DataDir, DB_FILENAME)
+	db, err := sql.Open("sqlite3", dbfile)
+	if err != nil {
+		fmt.Println("Faild to open database file")
+		return err
+	}
+
+	fmt.Println("Opened database file %s", dbfile)
+
+	n.dbHandler = db
+
+	// SHELLY - create the tables
+	lastTxIdCreateTableStmt := `create table if not exists LAST_TRANSACTION_ID (txId integer)`
+	nonReentrantTraceTableStmt := `create table if not exists NON_ECF_TRACE (id integer not null, origin text, block integer, time integer, contract text, depth integer, start_index integer, length integer)`
+
+	if err := n.executeStmt(lastTxIdCreateTableStmt); err != nil {
+		return err
+	}
+	if err := n.executeStmt(`insert into LAST_TRANSACTION_ID values(0)`); err != nil {
+		return err
+	}
+	if err := n.executeStmt(nonReentrantTraceTableStmt); err != nil {
+		return err
+	}
+
+	fmt.Println("Created all tables")
+
+	fmt.Printf("Setting db handler %v on the checker object\n", n.GetDbHandler())
+	vm.TheChecker().SetDbHandler(n.GetDbHandler())
+
+	return nil
+}
+/* Shelly - section end */
 
 // Start create a live P2P node and starts running it.
 func (n *Node) Start() error {
@@ -472,6 +539,23 @@ func (n *Node) stopWS() {
 	}
 }
 
+/* Shelly - section start */
+func (n *Node) teardownDb() error {
+	// SHELLY - save the transaction id
+	fmt.Printf("Updating last transaction id to %d\n", vm.TheChecker().TransactionID)
+	_, dberr := n.dbHandler.Exec(fmt.Sprintf("update LAST_TRANSACTION_ID set txId = %d", vm.TheChecker().TransactionID))
+	if dberr != nil {
+		fmt.Printf("Failed to set last tx id, %v\n", dberr)
+	}
+	// SHELLY - close the database
+	fmt.Printf("Closing the db handler\n")
+	n.dbHandler.Close()
+	n.dbHandler = nil
+
+	return nil
+}
+/* Shelly - section end */
+
 // Stop terminates a running node along with all it's services. In the node was
 // not started, an error is returned.
 func (n *Node) Stop() error {
@@ -499,6 +583,12 @@ func (n *Node) Stop() error {
 	n.server.Stop()
 	n.services = nil
 	n.server = nil
+
+	//  SHELLY TODO: Move to someplace else, so it could be ran from import flow too
+	teardownErr := n.teardownDb()
+	if teardownErr != nil {
+		return teardownErr
+	}
 
 	// Release instance directory lock.
 	if n.instanceDirLock != nil {
@@ -637,6 +727,11 @@ func (n *Node) WSEndpoint() string {
 // the current protocol stack.
 func (n *Node) EventMux() *event.TypeMux {
 	return n.eventmux
+}
+
+// SHELLY: DbHandler returns the database handle for EVM dynamic protections
+func (n *Node) DbHandler() *sql.DB {
+	return n.dbHandler
 }
 
 // OpenDatabase opens an existing database with the given name (or creates one if no
