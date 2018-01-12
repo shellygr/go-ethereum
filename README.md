@@ -1,3 +1,14 @@
+# Go Ethereum enhanced with ECF Checker
+
+This project contains an implementation of a dynamic monitor of the ECF property for Ethereum transactions, based on _[Geth](https://github.com/ethereum/go-ethereum)_, the Go implementation of an Ethereum client.
+
+The ECF property was introduced in the paper _Online Detection of Effectively Callback Free Objects with Applications to Smart Contracts_, published in [POPL'18](https://popl18.sigplan.org/home).
+
+## Technical Report
+
+https://www.cs.tau.ac.il/~shellygr/pubs/ecf-tr.pdf
+
+------------------------------------------------------------------------------
 ## Go Ethereum
 
 Official golang implementation of the Ethereum protocol.
